@@ -199,6 +199,9 @@ class FluxPipelineImpl : public torch::nn::Module {
   ModelArgs model_args_;
   torch::TensorOptions options_;
 
+  std::unique_ptr<Tokenizer> tokenizer_;
+  std::unique_ptr<Tokenizer> tokenizer_2_;
+
  public:
   FluxPipelineImpl(const ModelContext& context)
       : model_args_(context.get_model_args()),
@@ -805,6 +808,10 @@ class FluxPipelineImpl : public torch::nn::Module {
     auto vae_loader = loader->take_sub_model_loader_by_folder("vae");
     auto t5_loader = loader->take_sub_model_loader_by_folder("text_encoder_2");
     auto clip_loader = loader->take_sub_model_loader_by_folder("text_encoder");
+    auto tokenizer_loader =
+        loader->take_sub_model_loader_by_folder("tokenizer");
+    auto tokenizer_2_loader =
+        loader->take_sub_model_loader_by_folder("tokenizer_2");
     LOG(INFO)
         << "Flux model components loaded, start to load weights to sub models";
     transformer_->load_model(std::move(transformer_loader));
@@ -815,6 +822,8 @@ class FluxPipelineImpl : public torch::nn::Module {
     t5_->to(_execution_device);
     clip_text_model_->load_model(std::move(clip_loader));
     clip_text_model_->to(_execution_device);
+    tokenizer_ = tokenizer_loader->tokenizer();
+    tokenizer_2_ = tokenizer_2_loader->tokenizer();
   }
 };
 TORCH_MODULE(FluxPipeline);
