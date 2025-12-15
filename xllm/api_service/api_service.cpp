@@ -38,6 +38,18 @@ limitations under the License.
 #include "xllm_metrics.h"
 namespace xllm {
 
+namespace {
+template <typename Call>
+google::protobuf::Arena* GetArenaWithCheck(
+    const google::protobuf::Message* message) {
+  if (xllm::is_stream_call_v<Call>) {
+    return nullptr;
+  } else {
+    return message->GetArena();
+  }
+}
+}  // namespace
+
 APIService::APIService(Master* master,
                        const std::vector<std::string>& model_names,
                        const std::vector<std::string>& model_versions)
@@ -96,7 +108,7 @@ void APIService::Completions(::google::protobuf::RpcController* controller,
     return;
   }
   auto ctrl = reinterpret_cast<brpc::Controller*>(controller);
-  auto arena = response->GetArena();
+  auto arena = GetArenaWithCheck<CompletionCall>(response);
   std::shared_ptr<Call> call = std::make_shared<CompletionCall>(
       ctrl,
       done_guard.release(),
@@ -123,7 +135,7 @@ void APIService::CompletionsHttp(::google::protobuf::RpcController* controller,
     return;
   }
 
-  auto arena = response->GetArena();
+  auto arena = GetArenaWithCheck<CompletionCall>(response);
   auto req_pb =
       google::protobuf::Arena::CreateMessage<proto::CompletionRequest>(arena);
   auto resp_pb =
@@ -161,8 +173,10 @@ namespace {
 template <typename ChatCall, typename Service>
 void ChatCompletionsImpl(std::unique_ptr<Service>& service,
                          xllm::ClosureGuard& guard,
-                         ::google::protobuf::Arena* arena,
-                         brpc::Controller* ctrl) {
+                         brpc::Controller* ctrl,
+                         const proto::HttpRequest* request,
+                         proto::HttpResponse* response) {
+  auto arena = GetArenaWithCheck<ChatCall>(response);
   auto req_pb =
       google::protobuf::Arena::CreateMessage<typename ChatCall::ReqType>(arena);
   auto resp_pb =
@@ -204,15 +218,13 @@ void APIService::ChatCompletionsHttp(
   auto ctrl = reinterpret_cast<brpc::Controller*>(controller);
 
   if (FLAGS_backend == "llm") {
-    auto arena = response->GetArena();
     CHECK(chat_service_impl_) << " chat service is invalid.";
     ChatCompletionsImpl<ChatCall, ChatServiceImpl>(
-        chat_service_impl_, done_guard, arena, ctrl);
+        chat_service_impl_, done_guard, ctrl, request, response);
   } else if (FLAGS_backend == "vlm") {
     CHECK(mm_chat_service_impl_) << " mm chat service is invalid.";
-    // TODO: fix me - temporarily using heap allocation instead of arena
     ChatCompletionsImpl<MMChatCall, MMChatServiceImpl>(
-        mm_chat_service_impl_, done_guard, nullptr, ctrl);
+        mm_chat_service_impl_, done_guard, ctrl, request, response);
   }
 }
 
@@ -238,7 +250,7 @@ void handle_embedding_request(std::unique_ptr<Service>& embedding_service_impl_,
     LOG(ERROR) << "brpc request | respose | controller is null";
     return;
   }
-  auto arena = response->GetArena();
+  auto arena = GetArenaWithCheck<EmbeddingCall>(response);
   auto req_pb =
       google::protobuf::Arena::CreateMessage<typename EmbeddingCall::ReqType>(
           arena);
@@ -264,7 +276,7 @@ void handle_embedding_request(std::unique_ptr<Service>& embedding_service_impl_,
   }
 
   std::shared_ptr<Call> call = std::make_shared<EmbeddingCall>(
-      ctrl, done_guard.release(), req_pb, resp_pb);
+      ctrl, done_guard.release(), req_pb, resp_pb, arena != nullptr);
   embedding_service_impl_->process_async(call);
 }
 }  // namespace
@@ -305,7 +317,7 @@ void APIService::ImageGenerationHttp(
     return;
   }
 
-  auto arena = response->GetArena();
+  auto arena = GetArenaWithCheck<ImageGenerationCall>(response);
   auto req_pb =
       google::protobuf::Arena::CreateMessage<proto::ImageGenerationRequest>(
           arena);
@@ -326,7 +338,7 @@ void APIService::ImageGenerationHttp(
   }
   std::shared_ptr<ImageGenerationCall> call =
       std::make_shared<ImageGenerationCall>(
-          ctrl, done_guard.release(), req_pb, resp_pb);
+          ctrl, done_guard.release(), req_pb, resp_pb, arena != nullptr);
   image_generation_service_impl_->process_async(call);
 }
 
@@ -350,7 +362,7 @@ void APIService::RerankHttp(::google::protobuf::RpcController* controller,
     return;
   }
 
-  auto arena = response->GetArena();
+  auto arena = GetArenaWithCheck<RerankCall>(response);
   auto req_pb =
       google::protobuf::Arena::CreateMessage<proto::RerankRequest>(arena);
   auto resp_pb =
@@ -368,8 +380,8 @@ void APIService::RerankHttp(::google::protobuf::RpcController* controller,
     return;
   }
 
-  std::shared_ptr<Call> call =
-      std::make_shared<RerankCall>(ctrl, done_guard.release(), req_pb, resp_pb);
+  std::shared_ptr<Call> call = std::make_shared<RerankCall>(
+      ctrl, done_guard.release(), req_pb, resp_pb, arena != nullptr);
   rerank_service_impl_->process_async(call);
 }
 
