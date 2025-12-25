@@ -56,3 +56,6 @@ cc_test(
     GTest::gtest_main
     $<$<BOOL:${USE_NPU}>:nnopbase>
 )
+
+target_link_libraries(chunked_prefill_scheduler_test PRIVATE brpc OpenSSL::SSL OpenSSL::Crypto Folly::folly)
+add_dependencies(chunked_prefill_scheduler_test brpc-static)

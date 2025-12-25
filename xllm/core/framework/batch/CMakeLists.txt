@@ -44,3 +44,5 @@ target_link_libraries(batch_test
                       $<$<BOOL:${USE_NPU}>:c_sec>
                       $<$<BOOL:${USE_NPU}>:nnopbase>)
 
+target_link_libraries(batch_test PRIVATE brpc OpenSSL::SSL OpenSSL::Crypto ascendcl Folly::folly)
+add_dependencies(batch_test brpc-static)

@@ -105,4 +105,8 @@ target_link_options(acl_graph_executor_test PRIVATE
   "-Wl,--whole-archive" 
   "${CMAKE_BINARY_DIR}/third_party/spdlog/libspdlog.a"
   "-Wl,--no-whole-archive")
+
+target_link_libraries(acl_graph_executor_test PRIVATE brpc OpenSSL::SSL OpenSSL::Crypto Folly::folly)
+add_dependencies(acl_graph_executor_test brpc-static)
+
 endif()

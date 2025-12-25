@@ -46,3 +46,5 @@ cc_test(
     GTest::gtest_main
 )
 
+target_link_libraries(eplb_policy_test PRIVATE brpc OpenSSL::SSL OpenSSL::Crypto ascendcl Folly::folly)
+add_dependencies(eplb_policy_test brpc-static)
