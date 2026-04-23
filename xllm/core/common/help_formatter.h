@@ -61,9 +61,12 @@ const OptionCategory kMoeModelOptions = {
     "MOE MODEL OPTIONS",
     {"dp_size", "ep_size", "expert_parallel_degree"}};
 
-const OptionCategory kDiTModelOptions = {
-    "DiT MODEL OPTIONS",
-    {"dp_size", "tp_size", "sp_size", "cfg_size"}};
+const OptionCategory kDiTModelOptions = {"DiT MODEL OPTIONS",
+                                         {"dp_size",
+                                          "tp_size",
+                                          "sp_size",
+                                          "cfg_size",
+                                          "dit_generation_image_area_max"}};
 
 const OptionCategory kDisaggregatedPrefillDecodeOptions = {
     "DISAGGREGATED PREFILL-DECODE OPTIONS",

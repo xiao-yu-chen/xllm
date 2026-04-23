@@ -46,8 +46,7 @@ void init_clip8_lut() {
   if (clip8_ptr) return;
   for (int32_t i = 0; i < 1280; i++) {
     int32_t val = i - 640;
-    clip8_lut[i] =
-        static_cast<uint8_t>(val < 0 ? 0 : (val > 255 ? 255 : val));
+    clip8_lut[i] = static_cast<uint8_t>(val < 0 ? 0 : (val > 255 ? 255 : val));
   }
   clip8_ptr = &clip8_lut[640];
 }
@@ -146,9 +145,8 @@ void resample_horizontal_8bpc(uint8_t* dst,
       for (int32_t c = 0; c < channels; c++) {
         int32_t ss = 1 << (kPrecisionBits - 1);  // 0.5 for rounding
         for (int32_t x = 0; x < xmax; x++) {
-          ss += static_cast<int32_t>(
-                    src[(yy + y_offset) * src_w * channels +
-                        (x + xmin) * channels + c]) *
+          ss += static_cast<int32_t>(src[(yy + y_offset) * src_w * channels +
+                                         (x + xmin) * channels + c]) *
                 k[x];
         }
         dst[yy * dst_w * channels + xx * channels + c] = clip8(ss);
@@ -206,13 +204,11 @@ void resample_horizontal_f32(float* dst,
       for (int32_t c = 0; c < channels; c++) {
         double ss = 0.0;
         for (int32_t x = 0; x < xmax; x++) {
-          ss += static_cast<double>(
-                    src[(yy + y_offset) * src_w * channels +
-                        (x + xmin) * channels + c]) *
+          ss += static_cast<double>(src[(yy + y_offset) * src_w * channels +
+                                        (x + xmin) * channels + c]) *
                 k[x];
         }
-        dst[yy * dst_w * channels + xx * channels + c] =
-            static_cast<float>(ss);
+        dst[yy * dst_w * channels + xx * channels + c] = static_cast<float>(ss);
       }
     }
   }
@@ -241,8 +237,7 @@ void resample_vertical_f32(float* dst,
                     src[(y + ymin) * src_w * channels + xx * channels + c]) *
                 k[y];
         }
-        dst[yy * dst_w * channels + xx * channels + c] =
-            static_cast<float>(ss);
+        dst[yy * dst_w * channels + xx * channels + c] = static_cast<float>(ss);
       }
     }
   }
@@ -295,8 +290,7 @@ void resize_8bpc(const uint8_t* src,
     // Two-pass: horizontal first, temp buffer sized dst_w * (ybox_last -
     // ybox_first).
     int32_t temp_h = ybox_last - ybox_first;
-    std::vector<uint8_t> temp(
-        static_cast<size_t>(dst_w) * temp_h * channels);
+    std::vector<uint8_t> temp(static_cast<size_t>(dst_w) * temp_h * channels);
 
     resample_horizontal_8bpc(temp.data(),
                              dst_w,
@@ -389,8 +383,7 @@ void resize_f32(const float* src,
 
   if (need_h && need_v) {
     int32_t temp_h = ybox_last - ybox_first;
-    std::vector<float> temp(
-        static_cast<size_t>(dst_w) * temp_h * channels);
+    std::vector<float> temp(static_cast<size_t>(dst_w) * temp_h * channels);
 
     resample_horizontal_f32(temp.data(),
                             dst_w,

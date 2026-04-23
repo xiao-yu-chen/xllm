@@ -17,6 +17,7 @@ limitations under the License.
 #include "dit_request_params.h"
 
 #include "butil/base64.h"
+#include "core/common/global_flags.h"
 #include "core/common/instance_name.h"
 #include "core/common/macros.h"
 #include "core/util/utils.h"
@@ -171,9 +172,23 @@ DiTRequestParams::DiTRequestParams(const proto::ImageGenerationRequest& request,
 
 bool DiTRequestParams::verify_params(
     std::function<bool(DiTRequestOutput)> callback) const {
-  if (input_params.prompt.empty()) {
+  if (input_params.prompt.empty() && !input_params.prompt_embed.defined()) {
     CALLBACK_WITH_ERROR(StatusCode::INVALID_ARGUMENT, "prompt is empty");
     return false;
+  }
+
+  // Check if the image area exceeds the maximum allowed area.
+  if (FLAGS_dit_generation_image_area_max > 0) {
+    int64_t area = static_cast<int64_t>(generation_params.width) *
+                   static_cast<int64_t>(generation_params.height);
+    if (area > FLAGS_dit_generation_image_area_max) {
+      CALLBACK_WITH_ERROR(
+          StatusCode::INVALID_ARGUMENT,
+          "Requested image area (" + std::to_string(area) +
+              ") exceeds the maximum allowed area (" +
+              std::to_string(FLAGS_dit_generation_image_area_max) + ").");
+      return false;
+    }
   }
 
   return true;

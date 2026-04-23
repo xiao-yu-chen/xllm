@@ -312,6 +312,8 @@ DECLARE_int64(sp_size);
 
 DECLARE_int64(cfg_size);
 
+DECLARE_int64(dit_generation_image_area_max);
+
 DECLARE_bool(dit_debug_print);
 
 // --- multi-step decode config ---
