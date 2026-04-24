@@ -104,14 +104,19 @@ DiTRequestParams::DiTRequestParams(const proto::ImageGenerationRequest& request,
     }
   }
 
-  if (input.has_condition_image()) {
-    std::string raw_bytes;
-    if (!butil::Base64Decode(input.condition_image(), &raw_bytes)) {
+  input_params.images.reserve(input.images().size());
+  for (const auto& image : input.images()) {
+    std::string binary;
+    if (!butil::Base64Decode(image, &binary)) {
       LOG(ERROR) << "Base64 image decode failed";
+      continue;
     }
-    if (!decoder.decode(raw_bytes, input_params.condition_image)) {
+    torch::Tensor tensor;
+    if (!decoder.decode(binary, tensor)) {
       LOG(ERROR) << "Image decode failed.";
+      continue;
     }
+    input_params.images.emplace_back(std::move(tensor));
   }
 
   if (input.has_mask_image()) {
@@ -174,6 +179,13 @@ bool DiTRequestParams::verify_params(
     std::function<bool(DiTRequestOutput)> callback) const {
   if (input_params.prompt.empty() && !input_params.prompt_embed.defined()) {
     CALLBACK_WITH_ERROR(StatusCode::INVALID_ARGUMENT, "prompt is empty");
+    return false;
+  }
+
+  if (generation_params.width < 0 || generation_params.height < 0) {
+    CALLBACK_WITH_ERROR(
+        StatusCode::INVALID_ARGUMENT,
+        "Invalid image dimensions: width and height must be non-negative.");
     return false;
   }
 

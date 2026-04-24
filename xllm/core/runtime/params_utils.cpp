@@ -859,8 +859,11 @@ bool dit_forward_input_to_proto(const DiTForwardInput& dit_inputs,
   torch_tensor_to_proto_tensor(dit_inputs.images,
                                pb_dit_inputs->mutable_images());
 
-  torch_tensor_to_proto_tensor(dit_inputs.condition_images,
-                               pb_dit_inputs->mutable_condition_images());
+  auto* pb_images_list =
+      pb_dit_inputs->mutable_images_list()->mutable_tensors();
+  for (const auto& tensor : dit_inputs.images_list) {
+    torch_tensor_to_proto_tensor(tensor, pb_images_list->Add());
+  }
 
   torch_tensor_to_proto_tensor(dit_inputs.mask_images,
                                pb_dit_inputs->mutable_mask_images());
@@ -946,9 +949,12 @@ bool proto_to_dit_forward_input(const proto::DiTForwardInput& pb_dit_inputs,
     dit_inputs.images = util::proto_to_torch(pb_dit_inputs.images());
   }
 
-  if (pb_dit_inputs.has_condition_images()) {
-    dit_inputs.condition_images =
-        util::proto_to_torch(pb_dit_inputs.condition_images());
+  if (pb_dit_inputs.has_images_list()) {
+    dit_inputs.images_list.reserve(
+        pb_dit_inputs.images_list().tensors().size());
+    for (const auto& pb_tensor : pb_dit_inputs.images_list().tensors()) {
+      dit_inputs.images_list.emplace_back(util::proto_to_torch(pb_tensor));
+    }
   }
 
   if (pb_dit_inputs.has_mask_images()) {

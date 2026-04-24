@@ -98,6 +98,15 @@ inline size_t get_tensor_size(const torch::Tensor& tensor) {
   return size;
 }
 
+inline size_t get_vector_tensor_size(
+    const std::vector<torch::Tensor>& tensor_vec) {
+  size_t size = type_size<int32_t>;  // tensor_num
+  for (const auto& tensor : tensor_vec) {
+    size += get_tensor_size(tensor);
+  }
+  return size;
+}
+
 template <typename T>
 inline size_t get_2d_vector_size(const std::vector<std::vector<T>>& vec2d) {
   size_t size = type_size<uint64_t>;
@@ -271,7 +280,7 @@ inline size_t get_dit_forward_input_size(const DiTForwardInput& input) {
 
   // Tensors
   size += get_tensor_size(input.images);
-  size += get_tensor_size(input.condition_images);
+  size += get_vector_tensor_size(input.images_list);
   size += get_tensor_size(input.mask_images);
   size += get_tensor_size(input.control_image);
   size += get_tensor_size(input.masked_image_latents);
@@ -288,11 +297,7 @@ inline size_t get_dit_forward_input_size(const DiTForwardInput& input) {
 }
 
 inline size_t get_dit_forward_output_size(const DiTForwardOutput& output) {
-  size_t size = type_size<uint64_t>;  // vector size
-  for (const auto& tensor : output.tensors) {
-    size += get_tensor_size(tensor);
-  }
-  return size;
+  return get_vector_tensor_size(output.tensors);
 }
 
 size_t calculate_raw_forward_input_size(const RawForwardInput& input) {
@@ -683,7 +688,7 @@ inline void write_dit_forward_input(char*& buffer,
   write_string_vector(buffer, input.negative_prompts_2);
 
   write_tensor(buffer, input.images);
-  write_tensor(buffer, input.condition_images);
+  write_vector_tensor(buffer, input.images_list);
   write_tensor(buffer, input.mask_images);
   write_tensor(buffer, input.control_image);
   write_tensor(buffer, input.masked_image_latents);
@@ -698,10 +703,7 @@ inline void write_dit_forward_input(char*& buffer,
 
 inline void write_dit_forward_output(char*& buffer,
                                      const DiTForwardOutput& output) {
-  write_data(buffer, static_cast<uint64_t>(output.tensors.size()));
-  for (const auto& tensor : output.tensors) {
-    write_tensor(buffer, tensor);
-  }
+  write_vector_tensor(buffer, output.tensors);
 }
 
 inline void safe_advance_buffer(const char*& buffer, size_t offset) {
@@ -1157,7 +1159,7 @@ inline void read_dit_forward_input(const char*& buffer,
   read_string_vector(buffer, input.negative_prompts_2);
 
   read_tensor(buffer, input.images);
-  read_tensor(buffer, input.condition_images);
+  read_vector_tensor(buffer, input.images_list);
   read_tensor(buffer, input.mask_images);
   read_tensor(buffer, input.control_image);
   read_tensor(buffer, input.masked_image_latents);
@@ -1172,12 +1174,7 @@ inline void read_dit_forward_input(const char*& buffer,
 
 inline void read_dit_forward_output(const char*& buffer,
                                     DiTForwardOutput& output) {
-  uint64_t size;
-  read_data(buffer, size);
-  output.tensors.resize(size);
-  for (auto& tensor : output.tensors) {
-    read_tensor(buffer, tensor);
-  }
+  read_vector_tensor(buffer, output.tensors);
 }
 
 inline void deserialize_raw_forward_input(const char*& buffer,
