@@ -229,11 +229,13 @@ class VAEImageProcessorImpl : public torch::nn::Module {
     int64_t h = image.size(0), w = image.size(1), c = image.size(2);
 
     torch::Tensor out = torch::empty({height, width, c}, torch::kFloat32);
-    lanczos::resize_f32(
-        image.data_ptr<float>(), static_cast<int32_t>(w),
-        static_cast<int32_t>(h), static_cast<int32_t>(c),
-        static_cast<int32_t>(width), static_cast<int32_t>(height),
-        out.data_ptr<float>());
+    lanczos::resize_f32(image.data_ptr<float>(),
+                        static_cast<int32_t>(w),
+                        static_cast<int32_t>(h),
+                        static_cast<int32_t>(c),
+                        static_cast<int32_t>(width),
+                        static_cast<int32_t>(height),
+                        out.data_ptr<float>());
 
     out = out.permute({2, 0, 1});  // [C, dstH, dstW]
     out = out.to(options);

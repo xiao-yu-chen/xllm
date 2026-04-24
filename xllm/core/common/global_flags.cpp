@@ -661,6 +661,13 @@ DEFINE_int64(dit_sp_communication_overlap,
              1,
              "Communication & Computation overlap for sequence parallel");
 
+// --- dit image generation config ---
+
+DEFINE_int64(dit_generation_image_area_max,
+             0,
+             "Maximum allowed image area (width * height) for image generation "
+             "requests. If set to 0, there is no limit.");
+
 // --- dit debug ---
 
 DEFINE_bool(dit_debug_print,
