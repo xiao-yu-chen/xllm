@@ -255,6 +255,10 @@ class ContinuousScheduler : public Scheduler {
   void clear_mtp_bootstrap(Request* request);
 
  protected:
+  // Rounds a per-step wall-clock latency to an amortized per-token latency,
+  // i.e. round(tbt_ms / num_tokens). num_tokens must be > 0.
+  static int64_t amortized_token_latency_ms(int64_t tbt_ms, size_t num_tokens);
+
   const Options options_;
 
   // the engine to run the batch

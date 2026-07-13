@@ -1373,15 +1373,27 @@ void ContinuousScheduler::generate() {
   response_processor_->wait_completion();
 }
 
+int64_t ContinuousScheduler::amortized_token_latency_ms(int64_t tbt_ms,
+                                                        size_t num_tokens) {
+  const int64_t n = static_cast<int64_t>(num_tokens);
+  return (tbt_ms + n / 2) / n;
+}
+
 void ContinuousScheduler::update_token_latency_metrics(
     std::vector<Sequence*>& sequences) {
   const auto now = absl::Now();
+  const bool speculative_metrics_enabled =
+      options_.num_speculative_tokens() > 0;
+  int64_t step_committed_tokens = 0;
+  int64_t step_decode_seqs = 0;
   for (Sequence* sequence : sequences) {
     if (sequence->is_chunked_prefill_stage() ||
         sequence->last_token_handled()) {
       // skip chunked prefill stage
       continue;
     }
+    // Read the committed-token count before tbt(), which resets it.
+    const size_t committed_tokens = sequence->generated_tokens_since_latency();
     int64_t tbt_milliseconds = sequence->tbt(now);
     if (sequence->is_first_token()) {
       HISTOGRAM_OBSERVE(time_to_first_token_latency_milliseconds,
@@ -1390,7 +1402,18 @@ void ContinuousScheduler::update_token_latency_metrics(
           static_cast<double>(tbt_milliseconds) / 1000);
     } else {
       HISTOGRAM_OBSERVE(inter_token_latency_milliseconds, tbt_milliseconds);
+      if (speculative_metrics_enabled && committed_tokens > 0) {
+        HISTOGRAM_OBSERVE(
+            speculative_per_token_latency_milliseconds,
+            amortized_token_latency_ms(tbt_milliseconds, committed_tokens));
+        step_committed_tokens += static_cast<int64_t>(committed_tokens);
+        ++step_decode_seqs;
+      }
     }
+  }
+  if (step_decode_seqs > 0) {
+    GAUGE_SET(speculative_mean_tokens_per_decode_step,
+              static_cast<double>(step_committed_tokens) / step_decode_seqs);
   }
 }
 
