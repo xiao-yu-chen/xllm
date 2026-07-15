@@ -18,8 +18,8 @@ limitations under the License.
 #include <tuple>
 
 #include "core/framework/config/kv_cache_config.h"
-#include "core/framework/config/parallel_config.h"
 #include "kernels/ops_api.h"
+#include "platform/platform.h"
 
 namespace xllm {
 namespace layer {
@@ -40,7 +40,7 @@ DeepseekV2AttentionImpl::DeepseekV2AttentionImpl(
       eps_(args.rms_norm_eps()),
       interleaved_(true) {
   use_full_replicated_attention_weights_ =
-      ::xllm::ParallelConfig::get_instance().enable_prefill_sp();
+      parallel_args.cp_size() > 1 && Platform::uses_model_cp_partition();
   const int64_t tp_size = parallel_args.tp_group_->world_size();
   int64_t hidden_size = args.hidden_size();
   int64_t num_heads = args.n_heads();
@@ -432,7 +432,7 @@ torch::Tensor DeepseekV2AttentionImpl::forward(
     const torch::Tensor& hidden_states,
     const AttentionMetadata& attn_metadata,
     KVCache& kv_cache,
-    const v32_sp::DeepseekV32SPContext* sp_ctx) {
+    const v32_cp::DeepseekV32CPContext* sp_ctx) {
   bool is_prefill_or_chunked_prefill =
       attn_metadata.is_prefill || attn_metadata.is_chunked_prefill;
   if (sp_ctx != nullptr && can_use_sp()) {
