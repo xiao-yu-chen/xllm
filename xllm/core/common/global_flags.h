@@ -37,6 +37,10 @@ DECLARE_string(model);
 
 DECLARE_string(backend);
 
+DECLARE_string(model_impl);
+
+DECLARE_string(python_model_path);
+
 DECLARE_string(task);
 
 DECLARE_string(devices);
@@ -151,6 +155,8 @@ DECLARE_bool(enable_graph_vmm_pool);
 DECLARE_int32(max_tokens_for_graph_mode);
 
 DECLARE_int32(acl_graph_decode_batch_size_limit);
+
+DECLARE_string(python_graph_backend);
 
 DECLARE_bool(enable_chunked_prefill);
 
