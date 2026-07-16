@@ -154,6 +154,17 @@ void update_input_params(ModelInputParams& input_params,
                          std::vector<int32_t> kv_seq_lens_vec,
                          bool update_block_tables = false);
 
+// Packs a host int32 vector into a pinned CPU tensor for async H2D staging.
+torch::Tensor make_cpu_int_tensor(const std::vector<int32_t>& values);
+
+// Stages token_ids/positions into both the host and device tensors of `input`
+// with async H2D copies, toggling device_tensors_ready around the write.
+void set_token_position_tensors(ForwardInput& input,
+                                const std::vector<int32_t>& token_ids,
+                                const std::vector<int32_t>& positions,
+                                const torch::TensorOptions& token_options,
+                                const torch::TensorOptions& position_options);
+
 namespace draftProbs {
 
 // Compress draft probs to selected-only format [batch_size] for cache storage.
@@ -178,6 +189,23 @@ std::pair<torch::Tensor, torch::Tensor> build_validate_tensors(
     int32_t vocab_size,
     bool enable_opt_validate_probs,
     bool draft_probs_required = true);
+
+// Build validate inputs from an already-stacked draft block. Block-diffusion
+// drafters (DFlash) emit the whole block in one forward, so there are no
+// per-step tensors to assemble — this avoids the per-step select/view/cat
+// round trip of build_validate_tensors.
+//   token_ids_block / probs_block: [batch_size, n_speculative_tokens]
+// Returns draft_token_ids [batch, n_spec] (int64). When
+// enable_opt_validate_probs is true the selected-only probs_block is returned
+// as-is [batch, n_spec]; otherwise the selected probs are scattered into a
+// dense [batch, n_spec, vocab_size] tensor matching MTP's
+// build_validate_tensors output, which the default path and the fused
+// rejection kernel require.
+std::pair<torch::Tensor, torch::Tensor> build_validate_tensors_from_block(
+    const torch::Tensor& token_ids_block,
+    const torch::Tensor& probs_block,
+    int32_t vocab_size,
+    bool enable_opt_validate_probs);
 
 }  // namespace draftProbs
 
