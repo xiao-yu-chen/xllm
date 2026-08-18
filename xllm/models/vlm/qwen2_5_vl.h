@@ -480,7 +480,17 @@ class Qwen2_5_VLForConditionalGenerationImpl : public torch::nn::Module {
   Qwen2_5_VLForConditionalGenerationImpl(const ModelContext& context)
       : model_args_(context.get_model_args()),
         options_(context.get_tensor_options()) {
-    visual_ = register_module("visual", Qwen2_5_VisionTransformer(context));
+    if (::xllm::ModelConfig::get_instance().enable_vision_fp32()) {
+      auto fp32_options = options_.dtype(torch::kFloat32);
+      ModelContext vision_context(context.get_parallel_args(),
+                                  context.get_model_args(),
+                                  context.get_quant_args(),
+                                  fp32_options);
+      visual_ =
+          register_module("visual", Qwen2_5_VisionTransformer(vision_context));
+    } else {
+      visual_ = register_module("visual", Qwen2_5_VisionTransformer(context));
+    }
 
     language_model_ =
         register_module("language_model", QWen2ForCausalLM(context));
@@ -527,8 +537,13 @@ class Qwen2_5_VLForConditionalGenerationImpl : public torch::nn::Module {
     MMDict multimodal_embeds;
     if (image_input) {
       // visual
-      auto image_embeds = visual_(image_input->pixel_values.to(options_),
-                                  image_input->image_grid_thw);
+      auto vision_options =
+          ::xllm::ModelConfig::get_instance().enable_vision_fp32()
+              ? options_.dtype(torch::kFloat32)
+              : options_;
+      auto image_embeds = visual_(image_input->pixel_values.to(vision_options),
+                                  image_input->image_grid_thw)
+                              .to(options_);
       auto image_tokens =
           (image_input->image_grid_thw.prod(-1) / merge_size / merge_size)
               .cpu()
@@ -543,8 +558,14 @@ class Qwen2_5_VLForConditionalGenerationImpl : public torch::nn::Module {
     }
     if (video_input) {
       // visual
-      auto video_embeds = visual_(video_input->pixel_values_videos.to(options_),
-                                  video_input->video_grid_thw);
+      auto vision_options =
+          ::xllm::ModelConfig::get_instance().enable_vision_fp32()
+              ? options_.dtype(torch::kFloat32)
+              : options_;
+      auto video_embeds =
+          visual_(video_input->pixel_values_videos.to(vision_options),
+                  video_input->video_grid_thw)
+              .to(options_);
       auto video_tokens =
           (video_input->video_grid_thw.prod(-1) / merge_size / merge_size)
               .cpu()
@@ -723,9 +744,6 @@ REGISTER_MPOSITION_GENERATOR(qwen2_5_vl, QwenVLMPositionGenerator);
                 "rope_scaling.mrope_section",                                  \
                 std::vector<int64_t>({16, 24, 24}));                           \
     LOAD_ARG_OR(vocab_size, "vocab_size", 152064);                             \
-    if (args->rope_scaling_rope_type() == "default") {                         \
-      args->rope_scaling_rope_type() = "mrope";                                \
-    }                                                                          \
   } while (0)
 
 REGISTER_MODEL_ARGS(qwen2_5_vl, [&] { LOAD_QWEN2_5_VL_MODEL_ARGS(); });

@@ -86,6 +86,11 @@ DEFINE_bool(enable_return_mm_full_embeddings,
             false,
             "return vit and sequence embeddings for vlm models");
 
+DEFINE_bool(enable_vision_fp32,
+            false,
+            "run the VLM vision tower (ViT) in fp32 for higher embedding "
+            "precision; the language model stays in its configured dtype");
+
 DEFINE_string(mm_download_headers,
               "",
               "Service-level default HTTP headers for multimodal downloads, "
@@ -134,6 +139,7 @@ void ModelConfig::from_flags() {
   XLLM_CONFIG_ASSIGN_FROM_FLAG(tool_call_parser);
   XLLM_CONFIG_ASSIGN_FROM_FLAG(enable_qwen3_reranker);
   XLLM_CONFIG_ASSIGN_FROM_FLAG(enable_return_mm_full_embeddings);
+  XLLM_CONFIG_ASSIGN_FROM_FLAG(enable_vision_fp32);
   XLLM_CONFIG_ASSIGN_FROM_FLAG(mm_download_headers);
   XLLM_CONFIG_ASSIGN_FROM_FLAG(flashinfer_workspace_buffer_size);
   XLLM_CONFIG_ASSIGN_FROM_FLAG(use_audio_in_video);
@@ -185,6 +191,7 @@ void ModelConfig::from_json(const JsonReader& json) {
   XLLM_CONFIG_ASSIGN_FROM_JSON(tool_call_parser);
   XLLM_CONFIG_ASSIGN_FROM_JSON(enable_qwen3_reranker);
   XLLM_CONFIG_ASSIGN_FROM_JSON(enable_return_mm_full_embeddings);
+  XLLM_CONFIG_ASSIGN_FROM_JSON(enable_vision_fp32);
   XLLM_CONFIG_ASSIGN_FROM_JSON(mm_download_headers);
   XLLM_CONFIG_ASSIGN_FROM_JSON(flashinfer_workspace_buffer_size);
   XLLM_CONFIG_ASSIGN_FROM_JSON(use_audio_in_video);
@@ -214,6 +221,8 @@ void ModelConfig::append_config_json(
       config_json, default_config, enable_qwen3_reranker);
   APPEND_CONFIG_JSON_VALUE_IF_NOT_DEFAULT(
       config_json, default_config, enable_return_mm_full_embeddings);
+  APPEND_CONFIG_JSON_VALUE_IF_NOT_DEFAULT(
+      config_json, default_config, enable_vision_fp32);
   APPEND_CONFIG_JSON_VALUE_IF_NOT_DEFAULT(
       config_json, default_config, mm_download_headers);
   APPEND_CONFIG_JSON_VALUE_IF_NOT_DEFAULT(

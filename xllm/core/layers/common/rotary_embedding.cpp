@@ -175,7 +175,7 @@ void MRotaryEmbeddingImpl::forward(torch::Tensor& q,
 
   bool only_prefill =
       (attn_metadata.is_prefill || attn_metadata.is_chunked_prefill);
-  if (!only_prefill || mrope_section_.empty()) {
+  if (!only_prefill || mrope_section_.empty() || positions.dim() != 2) {
     torch::Tensor position_ids = positions;
     if (positions.dim() == 2) {
       position_ids = positions[0];

@@ -19,6 +19,8 @@ limitations under the License.
 
 #include "framework/parallel_state/parallel_state.h"
 #if defined(USE_NPU)
+#include <torch_npu/csrc/aten/CustomFunctions.h>
+
 #include "kernels/npu/npu_ops_api.h"
 #endif
 #if defined(USE_MLU)
@@ -66,11 +68,6 @@ Qwen2VisionAttentionImpl::Qwen2VisionAttentionImpl(const ModelContext& context,
                                             quant_args,
                                             parallel_args.tp_group_,
                                             options));
-#if defined(USE_NPU)
-  // currently only atb rope operation supports the head_dim=72,
-  // aclnn rope operation only supports head_dim=64 or 128
-  rope_layer_ = register_module("rope", NpuRopeLayer(context));
-#endif
 }
 
 std::vector<torch::Tensor> Qwen2VisionAttentionImpl::split_qkv(
@@ -123,7 +120,6 @@ int32_t Qwen2VisionAttentionImpl::get_max_sequence_length(
 
 namespace {
 
-#if defined(USE_CUDA) || defined(USE_DCU)
 // Pure PyTorch scaled dot-product attention for Qwen2 vision.
 void compute_qwen2_vision_attention_torch(
     torch::Tensor& q,
@@ -152,10 +148,10 @@ void compute_qwen2_vision_attention_torch(
     v_i = v_i.permute({1, 0, 2});
 
     // Scaled dot-product attention per head.
-    auto q_scaled = q_i * scale;
-    auto k_t = k_i.transpose(1, 2);              // [H, D, len]
-    auto scores = torch::matmul(q_scaled, k_t);  // [H, len, len]
-    auto attn = torch::softmax(scores, /*dim=*/-1);
+    auto k_t = k_i.transpose(1, 2);                 // [H, D, len]
+    auto scores = torch::matmul(q_i, k_t) * scale;  // [H, len, len]
+    auto attn = torch::softmax(scores, /*dim=*/-1, torch::kFloat32)
+                    .to(q_i.scalar_type());
     auto out_i = torch::matmul(attn, v_i);  // [H, len, D]
 
     // Back to [len, H, D] and write into output.
@@ -163,7 +159,6 @@ void compute_qwen2_vision_attention_torch(
     output.slice(/*dim=*/0, /*start=*/start, /*end=*/end).copy_(out_i);
   }
 }
-#endif  // defined(USE_CUDA) || defined(USE_DCU)
 
 #if defined(USE_NPU)
 void compute_qwen_vision_attention_fused(
@@ -237,14 +232,15 @@ torch::Tensor Qwen2VisionAttentionImpl::forward(
 
   // Apply rotary position embedding to both q and k in a single call.
 #if defined(USE_NPU)
-  auto q_atb = q.reshape({B * S, -1});
-  auto k_atb = k.reshape({B * S, -1});
-  auto rotary_result = rope_layer_->forward(
-      q_atb, k_atb, m_cos_pos, m_sin_pos, cu_seq_len, cu_seq_len_vec);
-  q = std::get<0>(rotary_result)
-          .reshape({B * S, num_attention_heads_per_partition_, head_dim});
-  k = std::get<1>(rotary_result)
-          .reshape({B * S, num_attention_heads_per_partition_, head_dim});
+  const torch::ScalarType output_dtype = q.scalar_type();
+  torch::Tensor cos_float = m_cos_pos.to(torch::kFloat32).unsqueeze(1);
+  torch::Tensor sin_float = m_sin_pos.to(torch::kFloat32).unsqueeze(1);
+  q = at_npu::native::custom_ops::npu_rotary_mul(
+          q.to(torch::kFloat32), cos_float, sin_float, "half")
+          .to(output_dtype);
+  k = at_npu::native::custom_ops::npu_rotary_mul(
+          k.to(torch::kFloat32), cos_float, sin_float, "half")
+          .to(output_dtype);
 #else
   // NOTE: Do NOT call apply_rotary twice; the first call already handles both
   // q and k. A second call would incorrectly apply RoPE to k a second time.
@@ -312,7 +308,14 @@ torch::Tensor Qwen2VisionAttentionImpl::forward(
   // do not call FlashInfer here and run attention entirely in PyTorch instead.
   compute_qwen2_vision_attention_torch(q, k, v, output, cu_seq_len_vec, scale_);
 #elif defined(USE_NPU)
-  compute_qwen_vision_attention_fused(q, k, v, output, cu_seq_len_vec, scale_);
+  // The ACL fused attention op  only supports fp16/bf16.
+  if (q.scalar_type() == torch::kFloat32) {
+    compute_qwen2_vision_attention_torch(
+        q, k, v, output, cu_seq_len_vec, scale_);
+  } else {
+    compute_qwen_vision_attention_fused(
+        q, k, v, output, cu_seq_len_vec, scale_);
+  }
 #endif
 
   // context_layer = rearrange(output, "(b s) h d -> s b (h d)", b=batch_size)

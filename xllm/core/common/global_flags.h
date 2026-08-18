@@ -352,6 +352,8 @@ DECLARE_int32(total_conversion_threshold);
 
 DECLARE_bool(enable_return_mm_full_embeddings);
 
+DECLARE_bool(enable_vision_fp32);
+
 DECLARE_int64(dit_cache_start_steps);
 
 DECLARE_int64(dit_cache_end_steps);
